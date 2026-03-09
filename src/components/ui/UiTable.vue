@@ -59,8 +59,10 @@
 </template>
 
 <script setup lang="ts" generic="T extends Record<string, any>">
+import type { TableColumn } from '@/types/designer';
+
 defineProps<{
-  columns: Array<{ key: keyof T & string; label: string }>
+  columns: TableColumn[]
   rows: T[]
   rowKey?: keyof T & string
 }>()

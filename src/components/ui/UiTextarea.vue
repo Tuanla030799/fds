@@ -19,7 +19,7 @@ defineOptions({ inheritAttrs: false })
 
 const props = withDefaults(defineProps<{
   modelValue?: string
-  rows?: number
+  rows?: number | string
   placeholder?: string
   maxlength?: number
   disabled?: boolean

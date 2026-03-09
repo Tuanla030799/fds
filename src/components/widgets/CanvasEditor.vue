@@ -171,7 +171,6 @@ const emit = defineEmits<{
 const {
   activeTab,
   addText,
-  canvasOuterRef,
   exportPng,
   fillColor,
   fontFamily,

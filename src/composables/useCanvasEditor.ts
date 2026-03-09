@@ -232,10 +232,8 @@ export function useCanvasEditor(options: {
     if (!icon) return;
 
     const { objects, options } = await fabric.loadSVGFromString(icon.svg);
-    const group = fabric.util.groupSVGElements(
-      objects,
-      options,
-    ) as TaggedObject;
+    const obj = objects.filter((obj) => obj !== null);
+    const group = fabric.util.groupSVGElements(obj, options) as TaggedObject;
     group.dataType = "icon";
     group.set({
       left: CANVAS_BASE_SIZE.width * 0.45,

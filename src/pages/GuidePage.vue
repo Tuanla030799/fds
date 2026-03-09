@@ -276,8 +276,8 @@
           </template>
           <template #cell-status="{ value }">
             <UiBadge
-              :label="value"
-              :variant="badgeVariant(value)"
+              :label="(value as any)"
+              :variant="badgeVariant(value as any)"
             />
           </template>
           <template #cell-tags="{ value }">
@@ -285,7 +285,7 @@
               <UiTag
                 v-for="tag in value"
                 :key="tag"
-                :label="tag"
+                :label="(tag as any)"
                 variant="outline"
               />
             </div>
