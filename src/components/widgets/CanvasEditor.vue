@@ -183,6 +183,7 @@ const {
   removeActive,
   setIconPickerOpen,
   textInput,
+  canvasOuterRef,
 } = useCanvasEditor({
   backgroundUrl: toRef(props, 'backgroundUrl'),
   bgFit: toRef(props, 'bgFit'),

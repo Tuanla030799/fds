@@ -110,6 +110,7 @@
                 class="block w-full rounded-[var(--ui-radius-md)] border border-[var(--ui-border)]"
               >
             </UiCard>
+
             <UiCard
               title="Điều khiển"
               padding="md"
@@ -117,8 +118,9 @@
               <p class="text-sm leading-6 text-[var(--ui-text-muted)]">
                 Bấm
                 <span class="font-semibold text-[var(--ui-text)]">Export PNG</span>
-                để tạo ảnh kết quả, rồi sang bước Kết quả.
+                để tạo ảnh kết quả, rồi sang bước xác nhận.
               </p>
+
               <div class="mt-4 flex flex-col gap-3">
                 <UiButton
                   variant="outline"
@@ -126,11 +128,12 @@
                 >
                   Quay lại
                 </UiButton>
+
                 <UiButton
                   :disabled="!exportedPng"
                   @click="next"
                 >
-                  Sang kết quả
+                  Sang xác nhận ảnh
                 </UiButton>
               </div>
             </UiCard>
@@ -138,7 +141,7 @@
         </div>
 
         <div
-          v-else
+          v-else-if="step === 2"
           class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]"
         >
           <UiCard
@@ -152,6 +155,7 @@
                 class="block w-full rounded-[var(--ui-radius-md)] border border-[var(--ui-border)]"
               >
             </div>
+
             <UiAlert
               v-else
               variant="warning"
@@ -168,17 +172,97 @@
               >
                 Quay lại
               </UiButton>
+
+              <UiButton
+                :disabled="!exportedPng"
+                variant="primary"
+                @click="next"
+              >
+                Nhập thông tin người dùng
+              </UiButton>
+
               <UiButton
                 variant="dark"
                 @click="clearAll"
               >
                 Làm lại từ đầu
               </UiButton>
-              <UiButton
-                variant="primary"
-                @click="handleSaveTemplate"
+            </div>
+          </UiCard>
+        </div>
+
+        <div
+          v-else
+          class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]"
+        >
+          <UiCard
+            title="Thông tin người dùng"
+            padding="md"
+          >
+            <UiForm class="space-y-4">
+              <UiFormItem label="Họ và tên">
+                <UiInput
+                  v-model="customerForm.fullName"
+                  placeholder="Nhập họ và tên"
+                />
+              </UiFormItem>
+
+              <UiFormItem label="Địa chỉ">
+                <UiTextarea
+                  v-model="customerForm.address"
+                  rows="4"
+                  placeholder="Nhập địa chỉ nhận hàng"
+                />
+              </UiFormItem>
+
+              <UiFormItem label="Số điện thoại">
+                <UiInput
+                  v-model="customerForm.phone"
+                  inputmode="tel"
+                  placeholder="Nhập số điện thoại"
+                />
+              </UiFormItem>
+
+              <UiFormItem label="Ghi chú">
+                <UiTextarea
+                  v-model="customerForm.note"
+                  rows="4"
+                  placeholder="Ghi chú thêm cho đơn hàng"
+                />
+              </UiFormItem>
+            </UiForm>
+          </UiCard>
+
+          <UiCard title="Gửi lên server">
+            <div class="space-y-3">
+              <UiAlert
+                v-if="!exportedPng"
+                variant="warning"
               >
-                Lưu mẫu
+                Chưa có ảnh PNG để gửi.
+              </UiAlert>
+
+              <UiButton
+                variant="outline"
+                @click="prev"
+              >
+                Quay lại
+              </UiButton>
+
+              <UiButton
+                :loading="submitLoading"
+                :disabled="!canSubmitDesign"
+                variant="primary"
+                @click="submitDesign"
+              >
+                Gửi ảnh và thông tin
+              </UiButton>
+
+              <UiButton
+                variant="dark"
+                @click="clearAll"
+              >
+                Làm lại từ đầu
               </UiButton>
             </div>
           </UiCard>
@@ -194,7 +278,11 @@ import {
   UiAlert,
   UiButton,
   UiCard,
+  UiForm,
+  UiFormItem,
+  UiInput,
   UiSteps,
+  UiTextarea,
   UiToast,
   UiUpload,
 } from "@/components/ui";
@@ -203,7 +291,9 @@ import { useDesignerPage } from "@/composables/useDesignerPage";
 const {
   WIZARD_STEPS,
   bgUrl,
+  canSubmitDesign,
   clearAll,
+  customerForm,
   exportedPng,
   next,
   notice,
@@ -212,7 +302,8 @@ const {
   prev,
   removeToast,
   step,
+  submitDesign,
+  submitLoading,
   toasts,
-  handleSaveTemplate,
 } = useDesignerPage();
 </script>

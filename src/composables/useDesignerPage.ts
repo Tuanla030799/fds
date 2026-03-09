@@ -12,9 +12,27 @@ import { useTimedNotice } from "@/composables/useTimedNotice";
 import { useToast } from "@/composables/useToast";
 import { useAppStore } from "@/stores/app";
 import { usePresetStore } from "@/stores/preset";
+import { designSubmissionService } from "@/services/client";
 import type { PresetRow, PresetStatus, WizardStep } from "@/types/designer";
 
 const PAGE_SIZE = 4;
+
+function dataUrlToFile(dataUrl: string, filename: string) {
+  const [meta, base64] = dataUrl.split(",");
+  if (!meta || !base64) {
+    throw new Error("Invalid data URL format.");
+  }
+  const mimeMatch = meta.match(/data:(.*?);base64/);
+  const mimeType = mimeMatch?.[1] || "image/png";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return new File([bytes], filename, { type: mimeType });
+}
 
 export function useDesignerPage() {
   const appStore = useAppStore();
@@ -34,11 +52,21 @@ export function useDesignerPage() {
 
   const step = ref<WizardStep>(0);
   const exportedPng = ref("");
+  const submitLoading = ref(false);
+
   const openDrawer = ref(false);
   const drawerPresetName = ref("");
   const drawerNote = ref("");
   const samplePreset = ref<"flat" | "puff" | "satin">("flat");
   const currentPage = ref(1);
+
+  const customerForm = reactive({
+    fullName: "",
+    address: "",
+    phone: "",
+    note: "",
+  });
+
   const sampleFlags = reactive({
     metallic: false,
     outline: true,
@@ -60,12 +88,21 @@ export function useDesignerPage() {
     return presetRows.value.slice(start, start + PAGE_SIZE);
   });
 
+  const canSubmitDesign = computed(() => {
+    return Boolean(
+      exportedPng.value &&
+      customerForm.fullName.trim() &&
+      customerForm.address.trim() &&
+      customerForm.phone.trim(),
+    );
+  });
+
   function next() {
-    step.value = Math.min(2, step.value + 1) as WizardStep;
+    step.value = Math.min(3, Number(step.value) + 1) as WizardStep;
   }
 
   function prev() {
-    step.value = Math.max(0, step.value - 1) as WizardStep;
+    step.value = Math.max(0, Number(step.value) - 1) as WizardStep;
   }
 
   function resetSampleFlags() {
@@ -75,17 +112,20 @@ export function useDesignerPage() {
     sampleFlags.autoCenter = true;
   }
 
+  function resetCustomerForm() {
+    customerForm.fullName = "";
+    customerForm.address = "";
+    customerForm.phone = "";
+    customerForm.note = "";
+  }
+
   function clearAll() {
     revoke();
     step.value = 0;
     exportedPng.value = "";
+    resetCustomerForm();
     clearNotice();
     pushToast("Đã reset toàn bộ màn hình demo.", "info", "Đặt lại");
-  }
-
-  function handleSaveTemplate() {
-    // Đây chỉ là demo, nên chức năng lưu preset sẽ mở drawer để nhập tên và note,
-    // sau đó hiển thị toast thông báo đã lưu thành công. Thực tế có thể gọi API.
   }
 
   function onFileChange(event: Event) {
@@ -95,6 +135,7 @@ export function useDesignerPage() {
 
     setFile(file);
     exportedPng.value = "";
+    resetCustomerForm();
     step.value = 0;
     setNotice("success", "Đã tải ảnh nền.");
     pushToast("Ảnh nền đã được nạp vào editor.", "success", "Upload xong");
@@ -103,12 +144,63 @@ export function useDesignerPage() {
 
   function onExported(payload: { pngDataUrl: string }) {
     exportedPng.value = payload.pngDataUrl;
+    console.log("exportedPng", exportedPng);
     setNotice("success", "Đã export PNG thành công.");
     pushToast(
-      "PNG đã sẵn sàng ở bước Kết quả.",
+      "PNG đã sẵn sàng ở bước xác nhận.",
       "success",
       "Export thành công",
     );
+  }
+
+  async function submitDesign() {
+    if (!exportedPng.value) {
+      setNotice("error", "Chưa có ảnh PNG để gửi.");
+      return;
+    }
+
+    if (
+      !customerForm.fullName.trim() ||
+      !customerForm.address.trim() ||
+      !customerForm.phone.trim()
+    ) {
+      setNotice(
+        "error",
+        "Vui lòng nhập đầy đủ họ tên, địa chỉ và số điện thoại.",
+      );
+      return;
+    }
+
+    submitLoading.value = true;
+
+    try {
+      const exportedFile = dataUrlToFile(
+        exportedPng.value,
+        "design-export.png",
+      );
+
+      await designSubmissionService.create({
+        fullName: customerForm.fullName.trim(),
+        address: customerForm.address.trim(),
+        phone: customerForm.phone.trim(),
+        note: customerForm.note.trim(),
+        imageFile: exportedFile,
+      });
+
+      setNotice("success", "Đã gửi ảnh và thông tin lên server.");
+      pushToast(
+        "Yêu cầu đã được gửi thành công.",
+        "success",
+        "Submit thành công",
+      );
+      clearAll();
+    } catch (error: any) {
+      const message = error?.message || "Gửi dữ liệu thất bại.";
+      setNotice("error", message);
+      pushToast(message, "error", "Submit lỗi");
+    } finally {
+      submitLoading.value = false;
+    }
   }
 
   function onMenuSelect(key: string) {
@@ -166,8 +258,10 @@ export function useDesignerPage() {
     apiLoading,
     badgeVariant,
     bgUrl,
+    canSubmitDesign,
     clearAll,
     currentPage,
+    customerForm,
     drawerNote,
     drawerPresetName,
     duplicatePreset,
@@ -190,9 +284,10 @@ export function useDesignerPage() {
     samplePreset,
     saveDrawerPreset,
     step,
+    submitDesign,
+    submitLoading,
     themeModel,
     themeOptions,
     toasts,
-    handleSaveTemplate,
   };
 }
