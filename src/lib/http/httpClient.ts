@@ -2,12 +2,16 @@ import axios, {
   AxiosError,
   type AxiosInstance,
   type AxiosRequestConfig,
+  type InternalAxiosRequestConfig,
 } from "axios";
 import { buildSearchParams } from "@/lib/http/queryParams";
 import { env } from "@/config/env";
 import { pinia } from "@/stores";
 import { useAppStore } from "@/stores/app";
 import { ApiError } from "@/types/http";
+import { adminAuthService } from "@/services/admin/auth.service";
+
+type RetryableConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
 function normalizeAxiosError(error: unknown) {
   if (axios.isAxiosError(error)) {
@@ -33,6 +37,49 @@ function normalizeAxiosError(error: unknown) {
   }
 
   return new ApiError({ message: "Đã có lỗi không xác định." });
+}
+
+let refreshPromise: Promise<string> | null = null;
+
+async function refreshAccessToken() {
+  const appStore = useAppStore(pinia);
+  if (!appStore.refreshToken) {
+    appStore.clearAuthSession();
+    throw new ApiError({
+      message: "Phiên đăng nhập đã hết hạn.",
+      status: 401,
+      code: "AUTH_EXPIRED",
+    });
+  }
+
+  if (!refreshPromise) {
+    appStore.startRefreshToken();
+    refreshPromise = adminAuthService
+      .refresh(appStore.refreshToken)
+      .then((payload) => {
+        appStore.setAuthSession(payload);
+        return payload.accessToken;
+      })
+      .catch((error) => {
+        appStore.clearAuthSession();
+        throw error;
+      })
+      .finally(() => {
+        appStore.finishRefreshToken();
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
+function shouldSkipRefresh(config?: RetryableConfig) {
+  const url = config?.url || "";
+  return (
+    url.includes("/admin/auth/login") ||
+    url.includes("/admin/auth/refresh") ||
+    url.includes("/admin/auth/logout")
+  );
 }
 
 function createHttpClient(config?: AxiosRequestConfig): AxiosInstance {
@@ -85,12 +132,36 @@ function createHttpClient(config?: AxiosRequestConfig): AxiosInstance {
       appStore.finishRequest();
       return response;
     },
-    (error: AxiosError) => {
+    async (error: AxiosError) => {
       const appStore = useAppStore(pinia);
       appStore.finishRequest();
 
-      if (error.response?.status === 401) {
-        appStore.clearAccessToken();
+      const originalRequest = error.config as RetryableConfig | undefined;
+      if (
+        error.response?.status === 401 &&
+        originalRequest &&
+        !originalRequest._retry &&
+        !shouldSkipRefresh(originalRequest) &&
+        appStore.refreshToken
+      ) {
+        try {
+          originalRequest._retry = true;
+          const nextAccessToken = await refreshAccessToken();
+          originalRequest.headers = {
+            ...(originalRequest.headers || {}),
+            Authorization: `Bearer ${nextAccessToken}`,
+          } as any;
+          return client(originalRequest);
+        } catch (refreshError) {
+          return Promise.reject(normalizeAxiosError(refreshError));
+        }
+      }
+
+      if (
+        error.response?.status === 401 &&
+        shouldSkipRefresh(originalRequest)
+      ) {
+        appStore.clearAuthSession();
       }
 
       return Promise.reject(normalizeAxiosError(error));

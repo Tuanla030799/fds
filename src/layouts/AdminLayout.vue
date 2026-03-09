@@ -1,44 +1,74 @@
 <template>
-  <div class="ui-page min-h-screen lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
-    <aside class="border-b border-[var(--ui-border)] bg-[var(--ui-surface)] lg:min-h-screen lg:border-b-0 lg:border-r">
-      <div class="px-4 py-4 sm:px-6 lg:px-6">
-        <RouterLink to="/fds" class="inline-flex items-center gap-3 no-underline">
-          <div class="flex h-10 w-10 items-center justify-center rounded-[var(--ui-radius-md)] bg-[var(--ui-text)] font-bold text-white">A</div>
-          <div>
-            <div class="text-sm font-semibold text-[var(--ui-text)]">Admin workspace</div>
-            <div class="text-xs text-[var(--ui-text-soft)]">Ready for dashboard / CRUD</div>
-          </div>
-        </RouterLink>
-      </div>
-      <nav class="flex flex-col gap-1 px-4 pb-4 sm:px-6 lg:px-4">
-        <RouterLink v-for="item in navItems" :key="item.to" :to="item.to" :class="linkClass(item.to)">{{ item.label }}</RouterLink>
-      </nav>
-    </aside>
+  <div class="ui-page min-h-screen bg-[var(--ui-surface-muted)] lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
+    <div class="hidden lg:block lg:min-h-screen">
+      <AdminSidebarNav />
+    </div>
 
-    <main class="min-w-0">
-      <RouterView />
-    </main>
+    <div class="min-w-0">
+      <AdminTopbar
+        :title="pageTitle"
+        :description="pageDescription"
+        @logout="handleLogout"
+      />
+
+      <div class="border-b border-[var(--ui-border)] bg-[var(--ui-surface)] px-4 py-3 lg:hidden">
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <RouterLink
+            v-for="item in quickLinks"
+            :key="item.to"
+            :to="item.to"
+            class="no-underline"
+          >
+            <UiButton
+              block
+              variant="outline"
+            >
+              {{ item.label }}
+            </UiButton>
+          </RouterLink>
+        </div>
+      </div>
+
+      <main class="min-w-0 px-4 py-4 sm:px-6 sm:py-6">
+        <RouterView />
+      </main>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { useRoute, RouterLink, RouterView } from 'vue-router'
-import { cn } from '@/utils/cn'
+import { computed } from 'vue'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
+import { UiButton } from '@/components/ui'
+import AdminSidebarNav from '@/components/admin/SidebarNav.vue'
+import AdminTopbar from '@/components/admin/Topbar.vue'
+import { adminAuthService } from '@/services/admin/auth.service'
+import { useAppStore } from '@/stores/app'
 
 const route = useRoute()
-const navItems = [
-  { label: 'Dashboard', to: '/admin' },
-  { label: 'Guide', to: '/guide' },
-  { label: 'FDS Designer', to: '/fds' },
+const router = useRouter()
+const appStore = useAppStore()
+
+const quickLinks = [
+  { label: 'Dashboard', to: '/admin/dashboard' },
+  { label: 'Đơn hàng', to: '/admin/orders' },
+  { label: 'Presets', to: '/admin/presets' },
+  { label: 'Client', to: '/fds' },
 ]
 
-function linkClass(to: string) {
-  const active = route.path === to || route.path.startsWith(`${to}/`)
-  return cn(
-    'inline-flex min-h-11 items-center rounded-[var(--ui-radius-md)] px-3 text-sm font-medium no-underline transition',
-    active
-      ? 'bg-[var(--ui-primary)] text-white'
-      : 'text-[var(--ui-text-muted)] hover:bg-[var(--ui-surface-soft)] hover:text-[var(--ui-text)]',
-  )
+const pageTitle = computed(() => String(route.meta.title || 'FDS Admin'))
+const pageDescription = computed(() => String(route.meta.description || 'Quản trị đơn hàng, preset và phiên đăng nhập admin.'))
+
+async function handleLogout() {
+  try {
+    if (appStore.refreshToken) {
+      await adminAuthService.logout(appStore.refreshToken)
+    }
+  } catch {
+    // swallow logout network error, still clear local session
+  } finally {
+    appStore.clearAuthSession()
+    router.replace({ name: 'admin-login' })
+  }
 }
 </script>

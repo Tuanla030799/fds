@@ -4,17 +4,18 @@ export type NoticeState<
   T extends string = "info" | "success" | "warning" | "error",
 > = {
   type: T;
-  text: string;
+  text: T extends string ? string : never;
 } | null;
 
 export type PresetStatus = "active" | "draft" | "archived";
 
 export type PresetRow = {
-  id: number;
+  id: number | string;
   name: string;
   status: PresetStatus;
   tags: string[];
   note: string;
+  imageUrl?: string;
 };
 
 export type MenuItem = {

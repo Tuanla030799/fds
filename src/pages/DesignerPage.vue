@@ -1,7 +1,5 @@
 <template>
-  <section
-    class="ui-page mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8"
-  >
+  <section class="ui-page mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
     <UiToast
       :items="toasts"
       @remove="removeToast"
@@ -9,9 +7,7 @@
 
     <div class="mb-5 flex flex-col gap-3 sm:mb-6">
       <div>
-        <h1
-          class="text-2xl font-bold tracking-tight text-[var(--ui-text)] sm:text-3xl"
-        >
+        <h1 class="text-2xl font-bold tracking-tight text-[var(--ui-text)] sm:text-3xl">
           Giả lập thêu chữ trên mẫu có sẵn
         </h1>
       </div>
@@ -36,39 +32,56 @@
           v-if="step === 0"
           class="mt-4 space-y-4"
         >
-          <UiUpload
-            title="Chọn ảnh"
-            description="Hỗ trợ jpg, png, webp."
-            accept="image/*"
-            trigger-text="Chọn ảnh từ thiết bị"
-            @change="onFileChange"
-          >
-            <template #extra>
-              <UiButton
-                :disabled="!bgUrl"
-                variant="outline"
-                block
-                class="sm:w-auto"
-                @click="clearAll"
-              >
-                Xóa ảnh
-              </UiButton>
-            </template>
-          </UiUpload>
-
           <UiCard
-            v-if="bgUrl"
-            title="Preview ảnh nền"
-            padding="sm"
+            title="Chọn ảnh mẫu từ hệ thống"
+            description="Preset ảnh được tải từ GET /api/presets."
+            padding="md"
           >
-            <img
-              :src="bgUrl"
-              alt="Preview background"
-              class="block max-h-[420px] w-full rounded-[var(--ui-radius-md)] border border-[var(--ui-border)] object-contain"
-            >
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <button
+                v-for="preset in pagedPresets"
+                :key="preset.id"
+                type="button"
+                class="rounded-[var(--ui-radius-lg)] border bg-[var(--ui-surface)] p-3 text-left transition"
+                :class="selectedPresetId === preset.id ? 'border-[var(--ui-primary)] ring-4 ring-[var(--ui-primary-ring)]' : 'border-[var(--ui-border)] hover:border-[var(--ui-border-strong)]'"
+                @click="selectPreset(preset)"
+              >
+                <div class="aspect-[4/3] overflow-hidden rounded-[var(--ui-radius-md)] border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]">
+                  <img
+                    v-if="preset.imageUrl"
+                    :src="preset.imageUrl"
+                    :alt="preset.name"
+                    class="h-full w-full object-cover"
+                  >
+                  <div
+                    v-else
+                    class="flex h-full items-center justify-center text-sm text-[var(--ui-text-soft)]"
+                  >
+                    No image
+                  </div>
+                </div>
+                <div class="mt-3 flex items-start justify-between gap-3">
+                  <div>
+                    <div class="font-semibold text-[var(--ui-text)]">
+                      {{ preset.name }}
+                    </div>
+                    <div class="mt-1 text-xs text-[var(--ui-text-soft)]">
+                      {{ preset.note }}
+                    </div>
+                  </div>
+                  <UiBadge
+                    :label="preset.status"
+                    :variant="badgeVariant(preset.status)"
+                  />
+                </div>
+              </button>
+            </div>
           </UiCard>
 
-          <div class="flex flex-col gap-3 sm:flex-row">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="text-sm text-[var(--ui-text-soft)]">
+              Chọn preset rồi sang bước thiết kế.
+            </div>
             <UiButton
               :disabled="!bgUrl"
               class="sm:w-auto"
@@ -116,8 +129,7 @@
               padding="md"
             >
               <p class="text-sm leading-6 text-[var(--ui-text-muted)]">
-                Bấm
-                <span class="font-semibold text-[var(--ui-text)]">Export PNG</span>
+                Bấm <span class="font-semibold text-[var(--ui-text)]">Export PNG</span>
                 để tạo ảnh kết quả, rồi sang bước xác nhận.
               </p>
 
@@ -128,7 +140,6 @@
                 >
                   Quay lại
                 </UiButton>
-
                 <UiButton
                   :disabled="!exportedPng"
                   @click="next"
@@ -155,7 +166,6 @@
                 class="block w-full rounded-[var(--ui-radius-md)] border border-[var(--ui-border)]"
               >
             </div>
-
             <UiAlert
               v-else
               variant="warning"
@@ -172,7 +182,6 @@
               >
                 Quay lại
               </UiButton>
-
               <UiButton
                 :disabled="!exportedPng"
                 variant="primary"
@@ -180,7 +189,6 @@
               >
                 Nhập thông tin người dùng
               </UiButton>
-
               <UiButton
                 variant="dark"
                 @click="clearAll"
@@ -206,7 +214,6 @@
                   placeholder="Nhập họ và tên"
                 />
               </UiFormItem>
-
               <UiFormItem label="Địa chỉ">
                 <UiTextarea
                   v-model="customerForm.address"
@@ -214,7 +221,6 @@
                   placeholder="Nhập địa chỉ nhận hàng"
                 />
               </UiFormItem>
-
               <UiFormItem label="Số điện thoại">
                 <UiInput
                   v-model="customerForm.phone"
@@ -222,7 +228,6 @@
                   placeholder="Nhập số điện thoại"
                 />
               </UiFormItem>
-
               <UiFormItem label="Ghi chú">
                 <UiTextarea
                   v-model="customerForm.note"
@@ -241,14 +246,12 @@
               >
                 Chưa có ảnh PNG để gửi.
               </UiAlert>
-
               <UiButton
                 variant="outline"
                 @click="prev"
               >
                 Quay lại
               </UiButton>
-
               <UiButton
                 :loading="submitLoading"
                 :disabled="!canSubmitDesign"
@@ -257,7 +260,6 @@
               >
                 Gửi ảnh và thông tin
               </UiButton>
-
               <UiButton
                 variant="dark"
                 @click="clearAll"
@@ -276,6 +278,7 @@
 import CanvasEditor from "@/components/widgets/CanvasEditor.vue";
 import {
   UiAlert,
+  UiBadge,
   UiButton,
   UiCard,
   UiForm,
@@ -284,12 +287,12 @@ import {
   UiSteps,
   UiTextarea,
   UiToast,
-  UiUpload,
 } from "@/components/ui";
 import { useDesignerPage } from "@/composables/useDesignerPage";
 
 const {
   WIZARD_STEPS,
+  badgeVariant,
   bgUrl,
   canSubmitDesign,
   clearAll,
@@ -298,9 +301,11 @@ const {
   next,
   notice,
   onExported,
-  onFileChange,
+  pagedPresets,
   prev,
   removeToast,
+  selectPreset,
+  selectedPresetId,
   step,
   submitDesign,
   submitLoading,

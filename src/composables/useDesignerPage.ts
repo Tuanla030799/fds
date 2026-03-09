@@ -1,4 +1,4 @@
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, onMounted } from "vue";
 import {
   MENU_ITEMS,
   PRESET_OPTIONS,
@@ -6,7 +6,6 @@ import {
   TABLE_COLUMNS,
   WIZARD_STEPS,
 } from "@/data/designer";
-import { useObjectUrl } from "@/composables/useObjectUrl";
 import { useTheme } from "@/composables/useTheme";
 import { useTimedNotice } from "@/composables/useTimedNotice";
 import { useToast } from "@/composables/useToast";
@@ -15,7 +14,7 @@ import { usePresetStore } from "@/stores/preset";
 import { designSubmissionService } from "@/services/client";
 import type { PresetRow, PresetStatus, WizardStep } from "@/types/designer";
 
-const PAGE_SIZE = 4;
+const PAGE_SIZE = 8;
 
 function dataUrlToFile(dataUrl: string, filename: string) {
   const [meta, base64] = dataUrl.split(",");
@@ -48,11 +47,12 @@ export function useDesignerPage() {
   const { notice, setNotice, clearNotice } = useTimedNotice<
     "success" | "error"
   >();
-  const { objectUrl: bgUrl, setFile, revoke } = useObjectUrl();
 
   const step = ref<WizardStep>(0);
   const exportedPng = ref("");
   const submitLoading = ref(false);
+  const bgUrl = ref("");
+  const selectedPresetId = ref<string | number | null>(null);
 
   const openDrawer = ref(false);
   const drawerPresetName = ref("");
@@ -120,31 +120,25 @@ export function useDesignerPage() {
   }
 
   function clearAll() {
-    revoke();
     step.value = 0;
     exportedPng.value = "";
     resetCustomerForm();
     clearNotice();
+    selectedPresetId.value = null;
+    bgUrl.value = "";
     pushToast("Đã reset toàn bộ màn hình demo.", "info", "Đặt lại");
   }
 
-  function onFileChange(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-
-    setFile(file);
+  function selectPreset(preset: PresetRow) {
+    selectedPresetId.value = preset.id;
+    bgUrl.value = preset.imageUrl || "";
     exportedPng.value = "";
-    resetCustomerForm();
     step.value = 0;
-    setNotice("success", "Đã tải ảnh nền.");
-    pushToast("Ảnh nền đã được nạp vào editor.", "success", "Upload xong");
-    input.value = "";
+    setNotice("success", `Đã chọn preset: ${preset.name}`);
   }
 
   function onExported(payload: { pngDataUrl: string }) {
     exportedPng.value = payload.pngDataUrl;
-    console.log("exportedPng", exportedPng);
     setNotice("success", "Đã export PNG thành công.");
     pushToast(
       "PNG đã sẵn sàng ở bước xác nhận.",
@@ -213,7 +207,8 @@ export function useDesignerPage() {
   }
 
   function previewPreset(row: PresetRow) {
-    pushToast(`Preview preset: ${row.name}`, "info", "Preview");
+    selectPreset(row);
+    pushToast(`Đã chọn preset: ${row.name}`, "info", "Preview");
   }
 
   function duplicatePreset(row: PresetRow) {
@@ -232,7 +227,6 @@ export function useDesignerPage() {
   async function fetchPresetList() {
     try {
       await presetStore.fetchPresets();
-      pushToast("Đã đồng bộ preset từ API.", "success", "API fetch");
     } catch {
       pushToast(
         presetStore.errorMessage || "Gọi API thất bại.",
@@ -247,6 +241,10 @@ export function useDesignerPage() {
     if (status === "draft") return "warning";
     return "neutral";
   }
+
+  onMounted(async () => {
+    await fetchPresetList();
+  });
 
   return {
     MENU_ITEMS,
@@ -270,7 +268,6 @@ export function useDesignerPage() {
     next,
     notice,
     onExported,
-    onFileChange,
     onMenuSelect,
     onTagClose,
     openDrawer,
@@ -283,6 +280,8 @@ export function useDesignerPage() {
     sampleFlags,
     samplePreset,
     saveDrawerPreset,
+    selectPreset,
+    selectedPresetId,
     step,
     submitDesign,
     submitLoading,
