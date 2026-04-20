@@ -48,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { UiAlert, UiButton, UiCard, UiForm, UiFormItem, UiInput } from '@/components/ui'
 import { adminAuthService } from '@/services/admin/auth.service'
@@ -66,6 +66,10 @@ const form = reactive({
 const submitting = ref(false)
 const errorMessage = ref('')
 
+function getRedirectTarget() {
+  return typeof route.query.redirect === 'string' ? route.query.redirect : '/admin/dashboard'
+}
+
 async function handleLogin() {
   if (!form.email.trim() || !form.password.trim()) {
     errorMessage.value = 'Vui lòng nhập đầy đủ email và mật khẩu.'
@@ -81,12 +85,18 @@ async function handleLogin() {
       password: form.password,
     })
     appStore.setAuthSession(payload)
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/admin/dashboard'
-    router.replace(redirect)
+    router.replace(getRedirectTarget())
   } catch (error: unknown) {
     errorMessage.value = (error as Error)?.message || 'Đăng nhập thất bại.'
   } finally {
     submitting.value = false
   }
 }
+
+onMounted(() => {
+  appStore.hydrate()
+  if (appStore.isAuthenticated) {
+    router.replace(getRedirectTarget())
+  }
+})
 </script>

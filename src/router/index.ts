@@ -1,4 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
+import { pinia } from "@/stores";
+import { useAppStore } from "@/stores/app";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -30,11 +32,56 @@ const router = createRouter({
       ],
     },
     {
+      path: "/admin/login",
+      name: "admin-login",
+      component: () => import("@/pages/admin/AdminLoginPage.vue"),
+      meta: {
+        title: "Admin Login",
+        guestOnly: true,
+      },
+    },
+    {
       path: "/admin",
       component: () => import("@/layouts/AdminLayout.vue"),
+      meta: {
+        requiresAdminAuth: true,
+      },
       children: [
         {
           path: "",
+          redirect: {
+            name: "admin-dashboard",
+          },
+        },
+        {
+          path: "dashboard",
+          name: "admin-dashboard",
+          component: () => import("@/pages/admin/AdminDashboardPage.vue"),
+          meta: {
+            title: "FDS Admin Dashboard",
+            description: "Tổng quan khu vực quản trị.",
+          },
+        },
+        {
+          path: "orders",
+          name: "admin-orders",
+          component: () => import("@/pages/admin/AdminOrdersPage.vue"),
+          meta: {
+            title: "FDS Admin Orders",
+            description: "Quản trị danh sách đơn hàng.",
+          },
+        },
+        {
+          path: "presets",
+          name: "admin-presets",
+          component: () => import("@/pages/admin/AdminPresetsPage.vue"),
+          meta: {
+            title: "FDS Admin Presets",
+            description: "Quản trị preset ảnh cho client.",
+          },
+        },
+        {
+          path: "home",
           name: "admin-home",
           component: () => import("@/pages/admin/AdminDashboardPage.vue"),
           meta: {
@@ -55,6 +102,26 @@ const router = createRouter({
   scrollBehavior() {
     return { top: 0 };
   },
+});
+
+router.beforeEach((to) => {
+  const appStore = useAppStore(pinia);
+  appStore.hydrate();
+
+  if (to.meta.requiresAdminAuth && !appStore.isAuthenticated) {
+    return {
+      name: "admin-login",
+      query: { redirect: to.fullPath },
+    };
+  }
+
+  if (to.meta.guestOnly && appStore.isAuthenticated) {
+    return {
+      name: "admin-dashboard",
+    };
+  }
+
+  return true;
 });
 
 router.afterEach((to) => {
