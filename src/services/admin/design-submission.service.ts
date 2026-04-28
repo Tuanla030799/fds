@@ -1,4 +1,5 @@
 import { httpClient } from "@/lib/http/httpClient";
+import { resolveFileUrl } from "@/lib/fileUrl";
 import type {
   DesignSubmissionRow,
   DesignSubmissionStatus,
@@ -16,13 +17,15 @@ export interface DesignSubmissionListParams extends QueryParams {
 }
 
 function normalizeRow(row: Record<string, any>): DesignSubmissionRow {
+  const imageUrl = row.imageUrl || row.image_url || "";
+
   return {
     id: row.id,
     fullName: row.fullName || row.full_name || "",
     address: row.address || "",
     phone: row.phone || "",
     note: row.note || "",
-    imageUrl: row.imageUrl || row.image_url || "",
+    imageUrl: resolveFileUrl(imageUrl),
     status: (row.status || "pending_confirmation") as DesignSubmissionStatus,
     createdAt: row.createdAt || row.created_at,
   };

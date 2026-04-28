@@ -2,8 +2,14 @@
   <div
     ref="rootRef"
     class="relative inline-block text-left"
+    @mouseenter="onMouseEnter"
+    @mouseleave="onMouseLeave"
   >
-    <div @click="toggle">
+    <div
+      ref="triggerRef"
+      class="cursor-pointer"
+      @click="toggle"
+    >
       <slot name="trigger">
         <button
           type="button"
@@ -14,38 +20,43 @@
       </slot>
     </div>
 
-    <Transition
-      enter-active-class="transition duration-150 ease-out"
-      enter-from-class="translate-y-1 opacity-0"
-      enter-to-class="translate-y-0 opacity-100"
-      leave-active-class="transition duration-100 ease-in"
-      leave-from-class="translate-y-0 opacity-100"
-      leave-to-class="translate-y-1 opacity-0"
-    >
-      <div
-        v-if="open"
-        :class="menuClasses"
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition duration-150 ease-out"
+        enter-from-class="translate-y-1 opacity-0"
+        enter-to-class="translate-y-0 opacity-100"
+        leave-active-class="transition duration-100 ease-in"
+        leave-from-class="translate-y-0 opacity-100"
+        leave-to-class="translate-y-1 opacity-0"
       >
-        <button
-          v-for="item in items"
-          :key="item.key"
-          type="button"
-          class="flex w-full items-center justify-between gap-3 rounded-[calc(var(--ui-radius-md)-4px)] px-3 py-2.5 text-left text-sm transition hover:bg-[var(--ui-surface-soft)]"
-          @click="onPick(item.key)"
+        <div
+          v-if="open"
+          :class="menuClasses"
+          :style="menuStyle"
+          @mouseenter="onMouseEnter"
+          @mouseleave="onMouseLeave"
         >
-          <span class="font-medium text-[var(--ui-text)]">{{ item.label }}</span>
-          <span
-            v-if="item.meta"
-            class="text-xs text-[var(--ui-text-soft)]"
-          >{{ item.meta }}</span>
-        </button>
-      </div>
-    </Transition>
+          <button
+            v-for="item in items"
+            :key="item.key"
+            type="button"
+            class="flex w-full cursor-pointer items-center justify-between gap-3 rounded-[calc(var(--ui-radius-md)-4px)] px-3 py-2.5 text-left text-sm transition hover:bg-[var(--ui-surface-soft)]"
+            @click="onPick(item.key)"
+          >
+            <span class="font-medium text-[var(--ui-text)]">{{ item.label }}</span>
+            <span
+              v-if="item.meta"
+              class="text-xs text-[var(--ui-text-soft)]"
+            >{{ item.meta }}</span>
+          </button>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { cn } from '@/utils/cn'
 
 type DropdownItem = { key: string; label: string; meta?: string }
@@ -54,10 +65,12 @@ const props = withDefaults(defineProps<{
   items?: DropdownItem[]
   triggerText?: string
   placement?: 'left' | 'right'
+  openOnHover?: boolean
 }>(), {
   items: () => [],
   triggerText: 'Mở menu',
   placement: 'right',
+  openOnHover: false,
 })
 
 const emit = defineEmits<{
@@ -66,22 +79,59 @@ const emit = defineEmits<{
 
 const open = ref(false)
 const rootRef = ref<HTMLElement | null>(null)
+const triggerRef = ref<HTMLElement | null>(null)
+const menuStyle = ref<Record<string, string>>({})
+let closeTimer: number | undefined
 
 const menuClasses = computed(() => cn(
-  'absolute z-30 mt-2 min-w-56 rounded-[var(--ui-radius-lg)] border border-[var(--ui-border)] bg-[var(--ui-surface)] p-2 shadow-2xl',
-  props.placement === 'right' ? 'right-0' : 'left-0',
+  'fixed z-[80] min-w-56 rounded-[var(--ui-radius-lg)] border border-[var(--ui-border)] bg-[var(--ui-surface)] p-2 shadow-2xl',
 ))
 
+async function updateMenuPosition() {
+  await nextTick()
+  const rect = triggerRef.value?.getBoundingClientRect()
+  if (!rect) return
+
+  menuStyle.value = {
+    top: `${rect.bottom + 8}px`,
+    ...(props.placement === 'right'
+      ? { right: `${Math.max(8, window.innerWidth - rect.right)}px` }
+      : { left: `${Math.max(8, rect.left)}px` }),
+  }
+}
+
+function setOpen(value: boolean) {
+  open.value = value
+  if (value) void updateMenuPosition()
+}
+
 function toggle() {
-  open.value = !open.value
+  if (props.openOnHover) return
+  setOpen(!open.value)
 }
 function onPick(key: string) {
   emit('select', key)
-  open.value = false
+  setOpen(false)
 }
 function onDocClick(event: MouseEvent) {
-  if (!rootRef.value?.contains(event.target as Node)) open.value = false
+  if (!rootRef.value?.contains(event.target as Node)) setOpen(false)
+}
+function onMouseEnter() {
+  if (!props.openOnHover) return
+  if (closeTimer) window.clearTimeout(closeTimer)
+  setOpen(true)
+}
+function onMouseLeave() {
+  if (!props.openOnHover) return
+  closeTimer = window.setTimeout(() => setOpen(false), 120)
 }
 document.addEventListener('click', onDocClick)
-onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
+window.addEventListener('resize', updateMenuPosition)
+window.addEventListener('scroll', updateMenuPosition, true)
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClick)
+  window.removeEventListener('resize', updateMenuPosition)
+  window.removeEventListener('scroll', updateMenuPosition, true)
+  if (closeTimer) window.clearTimeout(closeTimer)
+})
 </script>

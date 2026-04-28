@@ -3,7 +3,7 @@
     <div class="w-full max-w-md">
       <UiCard
         title="Đăng nhập admin"
-        description="Đăng nhập để vào khu vực quản trị đơn hàng và preset."
+        description="Đăng nhập để vào khu vực quản trị đơn hàng và template."
         padding="lg"
       >
         <UiAlert

@@ -79,7 +79,7 @@
                 label="/admin"
               />
               <p class="text-sm text-[var(--ui-text-muted)]">
-                Khu admin tách layout riêng, phù hợp CRUD, preset manager, asset
+                Khu admin tách layout riêng, phù hợp CRUD, template manager, asset
                 manager.
               </p>
             </div>
@@ -125,8 +125,8 @@
               hint="Các component này dùng lại trực tiếp cho form setting sau này."
             >
               <UiRadio
-                v-model="samplePreset"
-                :options="PRESET_OPTIONS"
+                v-model="sampleTemplate"
+                :options="TEMPLATE_OPTIONS"
                 stacked
               />
             </UiFormItem>
@@ -136,7 +136,7 @@
                 <UiCheckbox
                   v-model="sampleFlags.metallic"
                   label="Metallic thread"
-                  description="Thêm hiệu ứng chỉ ánh kim cho preset hiển thị."
+                  description="Thêm hiệu ứng chỉ ánh kim cho template hiển thị."
                 />
                 <UiCheckbox
                   v-model="sampleFlags.outline"
@@ -155,7 +155,7 @@
           <div class="flex flex-wrap gap-2">
             <UiTag label="Embroidery" />
             <UiTag
-              label="Preset active"
+              label="Template active"
               variant="primary"
             />
             <UiTag
@@ -223,9 +223,9 @@
             <UiButton
               :loading="apiLoading"
               block
-              @click="fetchPresetList"
+              @click="fetchTemplateList"
             >
-              Gọi GET /presets
+              Gọi GET /templates
             </UiButton>
             <UiButton
               block
@@ -250,11 +250,11 @@
     >
       <UiCard
         title="Admin/data base"
-        description="Dùng cho preset list, asset manager hoặc dashboard đơn giản."
+        description="Dùng cho template list, asset manager hoặc dashboard đơn giản."
       >
         <UiTable
           :columns="TABLE_COLUMNS"
-          :rows="pagedPresets"
+          :rows="pagedTemplates"
           row-key="id"
         >
           <template #cell-name="{ row }">
@@ -295,14 +295,14 @@
               <UiButton
                 size="sm"
                 variant="ghost"
-                @click="previewPreset(row)"
+                @click="previewTemplate(row)"
               >
                 Preview
               </UiButton>
               <UiButton
                 size="sm"
                 variant="outline"
-                @click="duplicatePreset(row)"
+                @click="duplicateTemplate(row)"
               >
                 Clone
               </UiButton>
@@ -312,7 +312,7 @@
             <UiPagination
               v-model:page="currentPage"
               :page-size="PAGE_SIZE"
-              :total="presetRows.length"
+              :total="templateRows.length"
             />
           </template>
         </UiTable>
@@ -325,7 +325,7 @@
         >
           <div class="space-y-4">
             <UiEmpty
-              title="Chưa có preset team"
+              title="Chưa có template team"
               description="Khi chưa có dữ liệu, dùng empty state để tránh cảm giác trống và thêm CTA rõ ràng."
             >
               <template #action>
@@ -333,13 +333,13 @@
                   size="sm"
                   @click="
                     pushToast(
-                      'Tạo preset mới từ empty state.',
+                      'Tạo template mới từ empty state.',
                       'info',
                       'Create',
                     )
                   "
                 >
-                  Tạo preset mới
+                  Tạo template mới
                 </UiButton>
               </template>
             </UiEmpty>
@@ -392,28 +392,28 @@
     <UiDrawer
       :open="openDrawer"
       title="Drawer mobile-first"
-      description="Phù hợp cho settings nâng cao hoặc bộ preset dài trên mobile."
+      description="Phù hợp cho settings nâng cao hoặc bộ template dài trên mobile."
       @close="openDrawer = false"
     >
       <UiForm class="space-y-4">
-        <UiFormItem label="Tên preset">
+        <UiFormItem label="Tên template">
           <UiInput
-            v-model="drawerPresetName"
+            v-model="drawerTemplateName"
             placeholder="Ví dụ: Street embroidery"
           />
         </UiFormItem>
         <UiFormItem label="Ghi chú">
           <UiTextarea
             v-model="drawerNote"
-            placeholder="Mô tả preset, font, màu, độ dày chỉ..."
+            placeholder="Mô tả template, font, màu, độ dày chỉ..."
             rows="5"
           />
         </UiFormItem>
         <UiButton
           block
-          @click="saveDrawerPreset"
+          @click="saveDrawerTemplate"
         >
-          Lưu preset demo
+          Lưu template demo
         </UiButton>
       </UiForm>
     </UiDrawer>
@@ -466,27 +466,27 @@ const links = [
 const {
   MENU_ITEMS,
   PAGE_SIZE,
-  PRESET_OPTIONS,
+  TEMPLATE_OPTIONS,
   TABLE_COLUMNS,
   accessTokenModel,
   apiLoading,
   badgeVariant,
   currentPage,
   drawerNote,
-  drawerPresetName,
-  duplicatePreset,
-  fetchPresetList,
+  drawerTemplateName,
+  duplicateTemplate,
+  fetchTemplateList,
   onMenuSelect,
   onTagClose,
   openDrawer,
-  pagedPresets,
-  presetRows,
-  previewPreset,
+  pagedTemplates,
+  templateRows,
+  previewTemplate,
   pushToast,
   removeToast,
   sampleFlags,
-  samplePreset,
-  saveDrawerPreset,
+  sampleTemplate,
+  saveDrawerTemplate,
   toasts,
 } = useDesignerPage();
 </script>

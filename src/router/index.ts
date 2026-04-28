@@ -72,12 +72,12 @@ const router = createRouter({
           },
         },
         {
-          path: "presets",
-          name: "admin-presets",
-          component: () => import("@/pages/admin/AdminPresetsPage.vue"),
+          path: "templates",
+          name: "admin-templates",
+          component: () => import("@/pages/admin/AdminTemplatesPage.vue"),
           meta: {
-            title: "FDS Admin Presets",
-            description: "Quản trị preset ảnh cho client.",
+            title: "FDS Admin Templates",
+            description: "Quản trị template ảnh cho client.",
           },
         },
         {

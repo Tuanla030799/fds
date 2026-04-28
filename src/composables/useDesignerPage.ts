@@ -1,8 +1,8 @@
 import { computed, reactive, ref, onMounted } from "vue";
 import {
   MENU_ITEMS,
-  PRESET_OPTIONS,
-  PRESET_ROWS,
+  TEMPLATE_OPTIONS,
+  TEMPLATE_ROWS,
   TABLE_COLUMNS,
   WIZARD_STEPS,
 } from "@/data/designer";
@@ -10,9 +10,10 @@ import { useTheme } from "@/composables/useTheme";
 import { useTimedNotice } from "@/composables/useTimedNotice";
 import { useToast } from "@/composables/useToast";
 import { useAppStore } from "@/stores/app";
-import { usePresetStore } from "@/stores/preset";
+import { useTemplateStore } from "@/stores/template";
 import { designSubmissionService } from "@/services/client";
-import type { PresetRow, PresetStatus, WizardStep } from "@/types/designer";
+import { fileService, type UploadedFile } from "@/services/file.service";
+import type { TemplateRow, TemplateStatus, WizardStep } from "@/types/designer";
 
 const PAGE_SIZE = 8;
 
@@ -37,9 +38,9 @@ export function useDesignerPage() {
   const appStore = useAppStore();
   appStore.hydrate();
 
-  const presetStore = usePresetStore();
-  if (!presetStore.loaded) {
-    presetStore.setPresets(PRESET_ROWS);
+  const templateStore = useTemplateStore();
+  if (!templateStore.loaded) {
+    templateStore.setTemplates(TEMPLATE_ROWS);
   }
 
   const { themeModel, themeOptions } = useTheme();
@@ -50,14 +51,17 @@ export function useDesignerPage() {
 
   const step = ref<WizardStep>(0);
   const exportedPng = ref("");
+  const uploadedDesignFile = ref<UploadedFile | null>(null);
+  const uploadedDesignSource = ref("");
+  const imageUploadLoading = ref(false);
   const submitLoading = ref(false);
   const bgUrl = ref("");
-  const selectedPresetId = ref<string | number | null>(null);
+  const selectedTemplateId = ref<string | number | null>(null);
 
   const openDrawer = ref(false);
-  const drawerPresetName = ref("");
+  const drawerTemplateName = ref("");
   const drawerNote = ref("");
-  const samplePreset = ref<"flat" | "puff" | "satin">("flat");
+  const sampleTemplate = ref<"flat" | "puff" | "satin">("flat");
   const currentPage = ref(1);
 
   const customerForm = reactive({
@@ -80,17 +84,17 @@ export function useDesignerPage() {
     },
   });
 
-  const presetRows = computed(() => presetStore.items);
-  const apiLoading = computed(() => appStore.isLoading || presetStore.loading);
+  const templateRows = computed(() => templateStore.items);
+  const apiLoading = computed(() => appStore.isLoading || templateStore.loading);
 
-  const pagedPresets = computed(() => {
+  const pagedTemplates = computed(() => {
     const start = (currentPage.value - 1) * PAGE_SIZE;
-    return presetRows.value.slice(start, start + PAGE_SIZE);
+    return templateRows.value.slice(start, start + PAGE_SIZE);
   });
 
   const canSubmitDesign = computed(() => {
     return Boolean(
-      exportedPng.value &&
+      uploadedDesignFile.value?.fileId &&
       customerForm.fullName.trim() &&
       customerForm.address.trim() &&
       customerForm.phone.trim(),
@@ -106,7 +110,7 @@ export function useDesignerPage() {
   }
 
   function resetSampleFlags() {
-    samplePreset.value = "flat";
+    sampleTemplate.value = "flat";
     sampleFlags.metallic = false;
     sampleFlags.outline = true;
     sampleFlags.autoCenter = true;
@@ -122,34 +126,88 @@ export function useDesignerPage() {
   function clearAll() {
     step.value = 0;
     exportedPng.value = "";
+    uploadedDesignFile.value = null;
+    uploadedDesignSource.value = "";
     resetCustomerForm();
     clearNotice();
-    selectedPresetId.value = null;
+    selectedTemplateId.value = null;
     bgUrl.value = "";
     pushToast("Đã reset toàn bộ màn hình demo.", "info", "Đặt lại");
   }
 
-  function selectPreset(preset: PresetRow) {
-    selectedPresetId.value = preset.id;
-    bgUrl.value = preset.imageUrl || "";
+  function selectTemplate(template: TemplateRow) {
+    selectedTemplateId.value = template.id;
+    bgUrl.value = template.imageUrl || "";
     exportedPng.value = "";
+    uploadedDesignFile.value = null;
+    uploadedDesignSource.value = "";
     step.value = 0;
-    setNotice("success", `Đã chọn preset: ${preset.name}`);
+    setNotice("success", `Đã chọn template: ${template.name}`);
   }
 
   function onExported(payload: { pngDataUrl: string }) {
     exportedPng.value = payload.pngDataUrl;
+    uploadedDesignFile.value = null;
+    uploadedDesignSource.value = "";
     setNotice("success", "Đã export PNG thành công.");
     pushToast(
       "PNG đã sẵn sàng ở bước xác nhận.",
       "success",
       "Export thành công",
     );
+    if (step.value === 1) next();
+  }
+
+  async function confirmDesignImage() {
+    if (!exportedPng.value) {
+      setNotice("error", "Chưa có ảnh PNG để xác nhận.");
+      return;
+    }
+
+    if (
+      uploadedDesignFile.value?.fileId &&
+      uploadedDesignSource.value === exportedPng.value
+    ) {
+      next();
+      return;
+    }
+
+    imageUploadLoading.value = true;
+
+    try {
+      const exportedFile = dataUrlToFile(
+        exportedPng.value,
+        "design-export.png",
+      );
+      const uploadedFile = await fileService.upload(exportedFile, {
+        scope: "client",
+      });
+
+      if (!uploadedFile.fileId) {
+        throw new Error("API upload không trả về fileId.");
+      }
+
+      uploadedDesignFile.value = uploadedFile;
+      uploadedDesignSource.value = exportedPng.value;
+      setNotice("success", "Đã upload ảnh thiết kế thành công.");
+      pushToast(
+        "Ảnh đã được upload và sẵn sàng gửi đơn.",
+        "success",
+        "Upload thành công",
+      );
+      next();
+    } catch (error: any) {
+      const message = error?.message || "Upload ảnh thiết kế thất bại.";
+      setNotice("error", message);
+      pushToast(message, "error", "Upload lỗi");
+    } finally {
+      imageUploadLoading.value = false;
+    }
   }
 
   async function submitDesign() {
-    if (!exportedPng.value) {
-      setNotice("error", "Chưa có ảnh PNG để gửi.");
+    if (!uploadedDesignFile.value?.fileId) {
+      setNotice("error", "Chưa có fileId ảnh thiết kế để gửi.");
       return;
     }
 
@@ -168,17 +226,12 @@ export function useDesignerPage() {
     submitLoading.value = true;
 
     try {
-      const exportedFile = dataUrlToFile(
-        exportedPng.value,
-        "design-export.png",
-      );
-
       await designSubmissionService.create({
         fullName: customerForm.fullName.trim(),
         address: customerForm.address.trim(),
         phone: customerForm.phone.trim(),
         note: customerForm.note.trim(),
-        imageFile: exportedFile,
+        fileId: uploadedDesignFile.value.fileId,
       });
 
       setNotice("success", "Đã gửi ảnh và thông tin lên server.");
@@ -206,50 +259,49 @@ export function useDesignerPage() {
     pushToast("Đã đóng tag demo.", "info", "Tag");
   }
 
-  function previewPreset(row: PresetRow) {
-    selectPreset(row);
-    pushToast(`Đã chọn preset: ${row.name}`, "info", "Preview");
+  function previewTemplate(row: TemplateRow) {
+    selectTemplate(row);
+    pushToast(`Đã chọn template: ${row.name}`, "info", "Preview");
   }
 
-  function duplicatePreset(row: PresetRow) {
-    pushToast(`Đã clone preset: ${row.name}`, "success", "Clone");
+  function duplicateTemplate(row: TemplateRow) {
+    pushToast(`Đã clone template: ${row.name}`, "success", "Clone");
   }
 
-  function saveDrawerPreset() {
+  function saveDrawerTemplate() {
     openDrawer.value = false;
     pushToast(
-      `Đã lưu preset demo: ${drawerPresetName.value || "Untitled"}`,
+      `Đã lưu template demo: ${drawerTemplateName.value || "Untitled"}`,
       "success",
-      "Preset saved",
+      "Template saved",
     );
   }
 
-  async function fetchPresetList() {
+  async function fetchTemplateList() {
     try {
-      await presetStore.fetchPresets();
+      await templateStore.fetchTemplates();
     } catch {
       pushToast(
-        presetStore.errorMessage || "Gọi API thất bại.",
+        templateStore.errorMessage || "Gọi API thất bại.",
         "error",
         "API error",
       );
     }
   }
 
-  function badgeVariant(status: PresetStatus) {
-    if (status === "active") return "success";
-    if (status === "draft") return "warning";
+  function badgeVariant(status: TemplateStatus) {
+    if (status === "ACTIVE") return "success";
     return "neutral";
   }
 
   onMounted(async () => {
-    await fetchPresetList();
+    await fetchTemplateList();
   });
 
   return {
     MENU_ITEMS,
     PAGE_SIZE,
-    PRESET_OPTIONS,
+    TEMPLATE_OPTIONS,
     TABLE_COLUMNS,
     WIZARD_STEPS,
     accessTokenModel,
@@ -258,35 +310,38 @@ export function useDesignerPage() {
     bgUrl,
     canSubmitDesign,
     clearAll,
+    confirmDesignImage,
     currentPage,
     customerForm,
     drawerNote,
-    drawerPresetName,
-    duplicatePreset,
+    drawerTemplateName,
+    duplicateTemplate,
     exportedPng,
-    fetchPresetList,
+    fetchTemplateList,
+    imageUploadLoading,
     next,
     notice,
     onExported,
     onMenuSelect,
     onTagClose,
     openDrawer,
-    pagedPresets,
-    presetRows,
-    previewPreset,
+    pagedTemplates,
+    templateRows,
+    previewTemplate,
     prev,
     pushToast,
     removeToast,
     sampleFlags,
-    samplePreset,
-    saveDrawerPreset,
-    selectPreset,
-    selectedPresetId,
+    sampleTemplate,
+    saveDrawerTemplate,
+    selectTemplate,
+    selectedTemplateId,
     step,
     submitDesign,
     submitLoading,
     themeModel,
     themeOptions,
     toasts,
+    uploadedDesignFile,
   };
 }

@@ -8,6 +8,7 @@ import { buildSearchParams } from "@/lib/http/queryParams";
 import { env } from "@/config/env";
 import { pinia } from "@/stores";
 import { useAppStore } from "@/stores/app";
+import router from "@/router";
 import { ApiError } from "@/types/http";
 import { adminAuthService } from "@/services/admin/auth.service";
 
@@ -82,6 +83,28 @@ function shouldSkipRefresh(config?: RetryableConfig) {
   );
 }
 
+function redirectToAdminLogin() {
+  const currentRoute = router.currentRoute.value;
+  if (currentRoute.name === "admin-login") return;
+
+  const redirect =
+    currentRoute.fullPath.startsWith("/admin") &&
+    currentRoute.fullPath !== "/admin/login"
+      ? currentRoute.fullPath
+      : undefined;
+
+  void router.replace({
+    name: "admin-login",
+    query: redirect ? { redirect } : undefined,
+  });
+}
+
+function handleUnauthorized() {
+  const appStore = useAppStore(pinia);
+  appStore.clearAuthSession();
+  redirectToAdminLogin();
+}
+
 function createHttpClient(config?: AxiosRequestConfig): AxiosInstance {
   const client = axios.create({
     baseURL: env.apiBaseUrl,
@@ -153,15 +176,13 @@ function createHttpClient(config?: AxiosRequestConfig): AxiosInstance {
           } as any;
           return client(originalRequest);
         } catch (refreshError) {
+          handleUnauthorized();
           return Promise.reject(normalizeAxiosError(refreshError));
         }
       }
 
-      if (
-        error.response?.status === 401 &&
-        shouldSkipRefresh(originalRequest)
-      ) {
-        appStore.clearAuthSession();
+      if (error.response?.status === 401) {
+        handleUnauthorized();
       }
 
       return Promise.reject(normalizeAxiosError(error));

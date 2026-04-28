@@ -1,4 +1,4 @@
-import type { PresetStatus } from "@/types/designer";
+import type { TemplateStatus } from "@/types/designer";
 
 export type AdminRole = "super_admin" | "operator" | "viewer";
 export type DesignSubmissionStatus =
@@ -41,10 +41,11 @@ export interface ListMeta {
   };
 }
 
-export interface AdminPresetRow {
+export interface AdminTemplateRow {
   id: number | string;
+  fileId?: number | string;
   name: string;
-  status: PresetStatus;
+  status: TemplateStatus;
   tags: string[];
   note: string;
   imageUrl?: string;

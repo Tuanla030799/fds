@@ -1,11 +1,15 @@
 <template>
-  <aside class="flex h-full flex-col border-r border-[var(--ui-border)] bg-[var(--ui-surface)]">
+  <aside
+    class="flex h-full flex-col border-r border-[var(--ui-border)] bg-[var(--ui-surface)]"
+  >
     <div class="border-b border-[var(--ui-border)] px-4 py-4">
       <RouterLink
         to="/admin/dashboard"
         class="flex items-center gap-3 no-underline"
       >
-        <div class="flex h-11 w-11 items-center justify-center rounded-[var(--ui-radius-md)] bg-[var(--ui-text)] text-base font-bold text-white">
+        <div
+          class="flex h-11 w-11 items-center justify-center rounded-[var(--ui-radius-md)] bg-[var(--ui-text)] text-base font-bold text-white"
+        >
           F
         </div>
         <div>
@@ -42,31 +46,31 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
-import { UiBadge } from '@/components/ui'
-import { useAppStore } from '@/stores/app'
-import { cn } from '@/utils/cn'
+import { computed } from "vue";
+import { RouterLink, useRoute } from "vue-router";
+import { UiBadge } from "@/components/ui";
+import { useAppStore } from "@/stores/app";
+import { cn } from "@/utils/cn";
 
-const route = useRoute()
-const appStore = useAppStore()
+const route = useRoute();
+const appStore = useAppStore();
 
 const items = [
-  { label: 'Dashboard', to: '/admin/dashboard', icon: '⌘' },
-  { label: 'Đơn hàng', to: '/admin/orders', icon: '▦' },
-  { label: 'Preset ảnh', to: '/admin/presets', icon: '▣' },
-  { label: 'Ra ngoài client', to: '/fds', icon: '↗' },
-]
+  { label: "Dashboard", to: "/admin/dashboard", icon: "⌘" },
+  { label: "Đơn hàng", to: "/admin/orders", icon: "▦" },
+  { label: "Mẫu ảnh", to: "/admin/templates", icon: "▣" },
+  { label: "Ra ngoài client", to: "/fds", icon: "↗" },
+];
 
-const adminRoleLabel = computed(() => appStore.adminProfile?.role || 'admin')
+const adminRoleLabel = computed(() => appStore.adminProfile?.role || "admin");
 
 function itemClass(to: string) {
-  const active = route.path === to || route.path.startsWith(`${to}/`)
+  const active = route.path === to || route.path.startsWith(`${to}/`);
   return cn(
-    'inline-flex min-h-11 items-center gap-3 rounded-[var(--ui-radius-md)] px-3 text-sm font-medium no-underline transition',
+    "inline-flex min-h-11 items-center gap-3 rounded-[var(--ui-radius-md)] px-3 text-sm font-medium no-underline transition",
     active
-      ? 'bg-[var(--ui-primary)] text-white'
-      : 'text-[var(--ui-text-muted)] hover:bg-[var(--ui-surface-soft)] hover:text-[var(--ui-text)]',
-  )
+      ? "bg-[var(--ui-primary)] text-white"
+      : "text-[var(--ui-text-muted)] hover:bg-[var(--ui-surface-soft)] hover:text-[var(--ui-text)]",
+  );
 }
 </script>

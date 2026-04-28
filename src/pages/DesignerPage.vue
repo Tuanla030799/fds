@@ -34,23 +34,23 @@
         >
           <UiCard
             title="Chọn ảnh mẫu từ hệ thống"
-            description="Preset ảnh được tải từ GET /api/presets."
+            description="Template ảnh được tải từ GET /api/templates."
             padding="md"
           >
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <button
-                v-for="preset in pagedPresets"
-                :key="preset.id"
+                v-for="template in pagedTemplates"
+                :key="template.id"
                 type="button"
                 class="rounded-[var(--ui-radius-lg)] border bg-[var(--ui-surface)] p-3 text-left transition"
-                :class="selectedPresetId === preset.id ? 'border-[var(--ui-primary)] ring-4 ring-[var(--ui-primary-ring)]' : 'border-[var(--ui-border)] hover:border-[var(--ui-border-strong)]'"
-                @click="selectPreset(preset)"
+                :class="selectedTemplateId === template.id ? 'border-[var(--ui-primary)] ring-4 ring-[var(--ui-primary-ring)]' : 'border-[var(--ui-border)] hover:border-[var(--ui-border-strong)]'"
+                @click="selectTemplate(template)"
               >
                 <div class="aspect-[4/3] overflow-hidden rounded-[var(--ui-radius-md)] border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]">
                   <img
-                    v-if="preset.imageUrl"
-                    :src="preset.imageUrl"
-                    :alt="preset.name"
+                    v-if="template.imageUrl"
+                    :src="template.imageUrl"
+                    :alt="template.name"
                     class="h-full w-full object-cover"
                   >
                   <div
@@ -63,15 +63,15 @@
                 <div class="mt-3 flex items-start justify-between gap-3">
                   <div>
                     <div class="font-semibold text-[var(--ui-text)]">
-                      {{ preset.name }}
+                      {{ template.name }}
                     </div>
                     <div class="mt-1 text-xs text-[var(--ui-text-soft)]">
-                      {{ preset.note }}
+                      {{ template.note }}
                     </div>
                   </div>
                   <UiBadge
-                    :label="preset.status"
-                    :variant="badgeVariant(preset.status)"
+                    :label="template.status"
+                    :variant="badgeVariant(template.status)"
                   />
                 </div>
               </button>
@@ -80,7 +80,7 @@
 
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div class="text-sm text-[var(--ui-text-soft)]">
-              Chọn preset rồi sang bước thiết kế.
+              Chọn template rồi sang bước thiết kế.
             </div>
             <UiButton
               :disabled="!bgUrl"
@@ -103,6 +103,7 @@
           >
             <CanvasEditor
               v-if="bgUrl"
+              ref="canvasEditorRef"
               :background-url="bgUrl"
               :max-text-chars="12"
               :max-icons="2"
@@ -129,8 +130,7 @@
               padding="md"
             >
               <p class="text-sm leading-6 text-[var(--ui-text-muted)]">
-                Bấm <span class="font-semibold text-[var(--ui-text)]">Export PNG</span>
-                để tạo ảnh kết quả, rồi sang bước xác nhận.
+                Tạo ảnh kết quả để sang bước xác nhận.
               </p>
 
               <div class="mt-4 flex flex-col gap-3">
@@ -141,8 +141,13 @@
                   Quay lại
                 </UiButton>
                 <UiButton
-                  :disabled="!exportedPng"
-                  @click="next"
+                  variant="danger"
+                  @click="removeActiveObject"
+                >
+                  Xóa Object
+                </UiButton>
+                <UiButton
+                  @click="exportAndGoToConfirm"
                 >
                   Sang xác nhận ảnh
                 </UiButton>
@@ -170,7 +175,7 @@
               v-else
               variant="warning"
             >
-              Chưa có PNG. Hãy quay lại bước Thiết kế và bấm Export PNG.
+              Chưa có PNG. Hãy quay lại bước Thiết kế và bấm Sang xác nhận ảnh.
             </UiAlert>
           </UiCard>
 
@@ -183,9 +188,10 @@
                 Quay lại
               </UiButton>
               <UiButton
+                :loading="imageUploadLoading"
                 :disabled="!exportedPng"
                 variant="primary"
-                @click="next"
+                @click="confirmDesignImage"
               >
                 Nhập thông tin người dùng
               </UiButton>
@@ -241,10 +247,10 @@
           <UiCard title="Gửi lên server">
             <div class="space-y-3">
               <UiAlert
-                v-if="!exportedPng"
+                v-if="!uploadedDesignFile"
                 variant="warning"
               >
-                Chưa có ảnh PNG để gửi.
+                Chưa có fileId ảnh thiết kế để gửi.
               </UiAlert>
               <UiButton
                 variant="outline"
@@ -275,6 +281,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from "vue";
 import CanvasEditor from "@/components/widgets/CanvasEditor.vue";
 import {
   UiAlert,
@@ -296,19 +303,32 @@ const {
   bgUrl,
   canSubmitDesign,
   clearAll,
+  confirmDesignImage,
   customerForm,
   exportedPng,
+  imageUploadLoading,
   next,
   notice,
   onExported,
-  pagedPresets,
+  pagedTemplates,
   prev,
   removeToast,
-  selectPreset,
-  selectedPresetId,
+  selectTemplate,
+  selectedTemplateId,
   step,
   submitDesign,
   submitLoading,
   toasts,
+  uploadedDesignFile,
 } = useDesignerPage();
+
+const canvasEditorRef = ref<InstanceType<typeof CanvasEditor> | null>(null);
+
+function removeActiveObject() {
+  canvasEditorRef.value?.removeActive();
+}
+
+function exportAndGoToConfirm() {
+  canvasEditorRef.value?.exportPng();
+}
 </script>

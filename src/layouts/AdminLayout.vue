@@ -52,12 +52,12 @@ const appStore = useAppStore()
 const quickLinks = [
   { label: 'Dashboard', to: '/admin/dashboard' },
   { label: 'Đơn hàng', to: '/admin/orders' },
-  { label: 'Presets', to: '/admin/presets' },
+  { label: 'Templates', to: '/admin/templates' },
   { label: 'Client', to: '/fds' },
 ]
 
 const pageTitle = computed(() => String(route.meta.title || 'FDS Admin'))
-const pageDescription = computed(() => String(route.meta.description || 'Quản trị đơn hàng, preset và phiên đăng nhập admin.'))
+const pageDescription = computed(() => String(route.meta.description || 'Quản trị đơn hàng, template và phiên đăng nhập admin.'))
 
 async function handleLogout() {
   try {

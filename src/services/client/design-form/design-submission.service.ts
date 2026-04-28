@@ -6,7 +6,7 @@ export interface CreateDesignSubmissionPayload {
   address: string;
   phone: string;
   note?: string;
-  imageFile: File;
+  fileId: string | number;
 }
 
 export interface DesignSubmissionResponse {
@@ -16,20 +16,9 @@ export interface DesignSubmissionResponse {
 
 export const designSubmissionService = {
   async create(payload: CreateDesignSubmissionPayload) {
-    const formData = new FormData();
-    formData.append("fullName", payload.fullName);
-    formData.append("address", payload.address);
-    formData.append("phone", payload.phone);
-    formData.append("note", payload.note || "");
-    formData.append("image", payload.imageFile);
-
     const response = await httpClient.post<
       ApiEnvelope<DesignSubmissionResponse>
-    >("/design-submissions", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    >("/design-submissions", payload);
 
     return response.data.data;
   },

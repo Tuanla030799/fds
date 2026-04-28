@@ -43,7 +43,7 @@
 
         <UiForm
           v-else-if="activeTab === 'style'"
-          class="grid grid-cols-1 gap-3 md:grid-cols-3"
+          class="grid grid-cols-1 gap-3 md:grid-cols-5"
         >
           <UiFormItem label="Font">
             <UiSelect
@@ -71,21 +71,32 @@
               >
             </label>
           </UiFormItem>
-        </UiForm>
 
-        <UiForm
-          v-else
-          class="grid grid-cols-1 gap-3 md:grid-cols-2"
-        >
-          <UiButton
-            variant="danger"
-            @click="removeActive"
+          <UiFormItem
+            v-if="activeTextSelected"
+            label="Rộng"
           >
-            Xóa object
-          </UiButton>
-          <UiButton @click="exportPng">
-            Export PNG
-          </UiButton>
+            <UiInput
+              v-model="textWidthModel"
+              type="number"
+              min="10"
+              max="1200"
+              inputmode="numeric"
+            />
+          </UiFormItem>
+
+          <UiFormItem
+            v-if="activeTextSelected"
+            label="Cao"
+          >
+            <UiInput
+              v-model="textHeightModel"
+              type="number"
+              min="10"
+              max="750"
+              inputmode="numeric"
+            />
+          </UiFormItem>
         </UiForm>
       </UiTabs>
     </UiCard>
@@ -170,6 +181,7 @@ const emit = defineEmits<{
 
 const {
   activeTab,
+  activeTextSelected,
   addText,
   exportPng,
   fillColor,
@@ -182,7 +194,9 @@ const {
   pickIcon,
   removeActive,
   setIconPickerOpen,
+  textHeightModel,
   textInput,
+  textWidthModel,
   canvasOuterRef,
 } = useCanvasEditor({
   backgroundUrl: toRef(props, 'backgroundUrl'),
@@ -193,6 +207,11 @@ const {
     bgFit: props.bgFit,
   },
   onExported: (payload) => emit('exported', payload),
+})
+
+defineExpose({
+  exportPng,
+  removeActive,
 })
 </script>
 

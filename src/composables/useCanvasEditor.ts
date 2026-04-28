@@ -4,6 +4,7 @@ import {
   onBeforeUnmount,
   onMounted,
   ref,
+  shallowRef,
   watch,
   type Ref,
 } from "vue";
@@ -26,6 +27,28 @@ import type {
 const DEFAULT_FONT_SIZE = 36;
 const DEFAULT_FILL = "#111111";
 const DEFAULT_FONT_FAMILY = "Arial";
+const MIN_OBJECT_SIZE = 10;
+const TEXT_RESIZE_HANDLE_SIZE = 18;
+
+type TextResizeEdge = {
+  left: boolean;
+  right: boolean;
+  top: boolean;
+  bottom: boolean;
+};
+
+type TextResizeState = TextResizeEdge & {
+  object: TaggedObject;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  startLeft: number;
+  startTop: number;
+  startWidth: number;
+  startHeight: number;
+  baseWidth: number;
+  baseHeight: number;
+};
 
 export function useCanvasEditor(options: {
   backgroundUrl: Ref<string>;
@@ -40,10 +63,16 @@ export function useCanvasEditor(options: {
   const fontFamily = ref(DEFAULT_FONT_FAMILY);
   const fontSize = ref(DEFAULT_FONT_SIZE);
   const fillColor = ref(DEFAULT_FILL);
+  const activeTextSelected = ref(false);
+  const textWidth = ref("");
+  const textHeight = ref("");
   const iconPickerOpen = ref(false);
   const activeTab = ref<"text" | "style" | "actions">("text");
   const syncing = ref(false);
   const resizeObserver = ref<ResizeObserver | null>(null);
+  const upperCanvasEl = ref<HTMLCanvasElement | null>(null);
+  const canvasScale = ref(1);
+  const textResizeState = shallowRef<TextResizeState | null>(null);
   const rafId = ref(0);
   const { notice, setNotice } = useTimedNotice<"info" | "error">();
 
@@ -57,12 +86,264 @@ export function useCanvasEditor(options: {
     },
   });
 
+  const textWidthModel = computed({
+    get: () => textWidth.value,
+    set: (value: string) => resizeActiveText("width", value),
+  });
+
+  const textHeightModel = computed({
+    get: () => textHeight.value,
+    set: (value: string) => resizeActiveText("height", value),
+  });
+
   function render() {
     canvas.value?.requestRenderAll();
   }
 
   function getActiveObject() {
     return canvas.value?.getActiveObject() as TaggedObject | null | undefined;
+  }
+
+  function getDisplaySize(target: TaggedObject) {
+    return {
+      width: Math.round(target.getScaledWidth()),
+      height: Math.round(target.getScaledHeight()),
+    };
+  }
+
+  function syncActiveTextSize(target: TaggedObject) {
+    const size = getDisplaySize(target);
+    textWidth.value = String(size.width);
+    textHeight.value = String(size.height);
+  }
+
+  function resizeActiveText(axis: "width" | "height", value: string) {
+    if (!canvas.value) return;
+    const active = getActiveObject();
+    if (!active || active.dataType !== "text") return;
+    if (!value.trim()) {
+      if (axis === "width") textWidth.value = "";
+      else textHeight.value = "";
+      return;
+    }
+
+    const nextSize = Number(value);
+    if (!Number.isFinite(nextSize)) return;
+
+    const clampedSize = Math.min(
+      axis === "width" ? CANVAS_BASE_SIZE.width : CANVAS_BASE_SIZE.height,
+      Math.max(MIN_OBJECT_SIZE, nextSize),
+    );
+    const baseSize =
+      axis === "width"
+        ? active.width || active.getScaledWidth()
+        : active.height || active.getScaledHeight();
+    if (!baseSize) return;
+
+    active.set({
+      [axis === "width" ? "scaleX" : "scaleY"]: clampedSize / baseSize,
+    });
+    active.setCoords();
+    syncActiveTextSize(active);
+    render();
+  }
+
+  function getTextResizeEdge(target: TaggedObject, pointer: fabric.Point) {
+    const rect = target.getBoundingRect();
+    const handleSize = Math.min(
+      TEXT_RESIZE_HANDLE_SIZE / canvasScale.value,
+      rect.width / 3,
+      rect.height / 3,
+    );
+    const withinX =
+      pointer.x >= rect.left - handleSize &&
+      pointer.x <= rect.left + rect.width + handleSize;
+    const withinY =
+      pointer.y >= rect.top - handleSize &&
+      pointer.y <= rect.top + rect.height + handleSize;
+
+    if (!withinX || !withinY) return null;
+
+    const relativeX = rect.width ? (pointer.x - rect.left) / rect.width : 0.5;
+    const relativeY = rect.height ? (pointer.y - rect.top) / rect.height : 0.5;
+    const nearLeft = Math.abs(pointer.x - rect.left) <= handleSize;
+    const nearRight =
+      Math.abs(pointer.x - (rect.left + rect.width)) <= handleSize;
+    const nearTop = Math.abs(pointer.y - rect.top) <= handleSize;
+    const nearBottom =
+      Math.abs(pointer.y - (rect.top + rect.height)) <= handleSize;
+    const inLeftCorner = relativeX <= 0.25;
+    const inRightCorner = relativeX >= 0.75;
+    const inTopCorner = relativeY <= 0.25;
+    const inBottomCorner = relativeY >= 0.75;
+
+    const left = nearLeft && (!nearTop && !nearBottom || inTopCorner || inBottomCorner);
+    const right =
+      nearRight && (!nearTop && !nearBottom || inTopCorner || inBottomCorner);
+    const top = nearTop && (!nearLeft && !nearRight || inLeftCorner || inRightCorner);
+    const bottom =
+      nearBottom && (!nearLeft && !nearRight || inLeftCorner || inRightCorner);
+    const edge = { left, right, top, bottom };
+
+    return edge.left || edge.right || edge.top || edge.bottom ? edge : null;
+  }
+
+  function getTextResizeCursor(edge: TextResizeEdge) {
+    if ((edge.left && edge.top) || (edge.right && edge.bottom)) {
+      return "nwse-resize";
+    }
+    if ((edge.right && edge.top) || (edge.left && edge.bottom)) {
+      return "nesw-resize";
+    }
+    if (edge.left || edge.right) return "ew-resize";
+    if (edge.top || edge.bottom) return "ns-resize";
+    return "";
+  }
+
+  function onCanvasPointerDown(event: PointerEvent) {
+    if (!canvas.value || event.button !== 0) return;
+    const active = getActiveObject();
+    if (!active || active.dataType !== "text") return;
+
+    const pointer = canvas.value.getScenePoint(event);
+    const edge = getTextResizeEdge(active, pointer);
+    if (!edge) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+
+    const rect = active.getBoundingRect();
+    const baseWidth = active.width || active.getScaledWidth();
+    const baseHeight = active.height || active.getScaledHeight();
+    if (!baseWidth || !baseHeight) return;
+
+    textResizeState.value = {
+      ...edge,
+      object: active,
+      pointerId: event.pointerId,
+      startX: pointer.x,
+      startY: pointer.y,
+      startLeft: Number(active.left || 0),
+      startTop: Number(active.top || 0),
+      startWidth: rect.width,
+      startHeight: rect.height,
+      baseWidth,
+      baseHeight,
+    };
+
+    upperCanvasEl.value?.setPointerCapture?.(event.pointerId);
+  }
+
+  function onCanvasPointerMove(event: PointerEvent) {
+    if (!canvas.value) return;
+
+    const resizeState = textResizeState.value;
+    if (!resizeState) {
+      const active = getActiveObject();
+      if (!active || active.dataType !== "text") {
+        upperCanvasEl.value?.style.removeProperty("cursor");
+        return;
+      }
+
+      const edge = getTextResizeEdge(active, canvas.value.getScenePoint(event));
+      if (upperCanvasEl.value) {
+        upperCanvasEl.value.style.cursor = edge ? getTextResizeCursor(edge) : "";
+      }
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+
+    const pointer = canvas.value.getScenePoint(event);
+    const deltaX = pointer.x - resizeState.startX;
+    const deltaY = pointer.y - resizeState.startY;
+    const nextProps: Partial<{
+      left: number;
+      top: number;
+      scaleX: number;
+      scaleY: number;
+    }> = {};
+
+    if (resizeState.left || resizeState.right) {
+      const nextWidth = Math.max(
+        MIN_OBJECT_SIZE,
+        resizeState.startWidth +
+          (resizeState.right ? deltaX : 0) -
+          (resizeState.left ? deltaX : 0),
+      );
+      nextProps.scaleX = nextWidth / resizeState.baseWidth;
+      if (resizeState.left) nextProps.left = resizeState.startLeft + deltaX;
+    }
+
+    if (resizeState.top || resizeState.bottom) {
+      const nextHeight = Math.max(
+        MIN_OBJECT_SIZE,
+        resizeState.startHeight +
+          (resizeState.bottom ? deltaY : 0) -
+          (resizeState.top ? deltaY : 0),
+      );
+      nextProps.scaleY = nextHeight / resizeState.baseHeight;
+      if (resizeState.top) nextProps.top = resizeState.startTop + deltaY;
+    }
+
+    resizeState.object.set(nextProps);
+    resizeState.object.setCoords();
+    syncActiveTextSize(resizeState.object);
+    render();
+  }
+
+  function onCanvasPointerUp(event: PointerEvent) {
+    const resizeState = textResizeState.value;
+    if (!resizeState) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+
+    resizeState.object.setCoords();
+    syncActiveTextSize(resizeState.object);
+    canvas.value?.fire("object:modified", { target: resizeState.object });
+    textResizeState.value = null;
+    upperCanvasEl.value?.releasePointerCapture?.(resizeState.pointerId);
+    upperCanvasEl.value?.style.removeProperty("cursor");
+  }
+
+  function bindTextResizeEvents(fabricCanvas: fabric.Canvas) {
+    upperCanvasEl.value = (
+      fabricCanvas as fabric.Canvas & { upperCanvasEl?: HTMLCanvasElement }
+    ).upperCanvasEl || null;
+    upperCanvasEl.value?.addEventListener("pointerdown", onCanvasPointerDown, {
+      capture: true,
+    });
+    upperCanvasEl.value?.addEventListener("pointermove", onCanvasPointerMove, {
+      capture: true,
+    });
+    upperCanvasEl.value?.addEventListener("pointerup", onCanvasPointerUp, {
+      capture: true,
+    });
+    upperCanvasEl.value?.addEventListener("pointercancel", onCanvasPointerUp, {
+      capture: true,
+    });
+  }
+
+  function unbindTextResizeEvents() {
+    upperCanvasEl.value?.removeEventListener("pointerdown", onCanvasPointerDown, {
+      capture: true,
+    });
+    upperCanvasEl.value?.removeEventListener("pointermove", onCanvasPointerMove, {
+      capture: true,
+    });
+    upperCanvasEl.value?.removeEventListener("pointerup", onCanvasPointerUp, {
+      capture: true,
+    });
+    upperCanvasEl.value?.removeEventListener("pointercancel", onCanvasPointerUp, {
+      capture: true,
+    });
+    upperCanvasEl.value?.style.removeProperty("cursor");
+    upperCanvasEl.value = null;
   }
 
   function syncScaleToOuter() {
@@ -73,19 +354,18 @@ export function useCanvasEditor(options: {
       Math.floor(canvasOuterRef.value.getBoundingClientRect().width),
     );
     const scale = outerWidth / CANVAS_BASE_SIZE.width;
+    canvasScale.value = scale;
     const outerHeight = Math.floor(CANVAS_BASE_SIZE.height * scale);
 
     canvasOuterRef.value.style.height = `${outerHeight}px`;
 
-    const wrapperEl = (
-      canvas.value as unknown as { wrapperEl?: HTMLDivElement }
-    ).wrapperEl;
-    if (!wrapperEl) return;
-
-    wrapperEl.style.width = `${CANVAS_BASE_SIZE.width}px`;
-    wrapperEl.style.height = `${CANVAS_BASE_SIZE.height}px`;
-    wrapperEl.style.transformOrigin = "0 0";
-    wrapperEl.style.transform = `scale(${scale})`;
+    canvas.value.setDimensions(
+      {
+        width: `${outerWidth}px`,
+        height: `${outerHeight}px`,
+      },
+      { cssOnly: true },
+    );
     canvas.value.requestRenderAll();
   }
 
@@ -141,17 +421,26 @@ export function useCanvasEditor(options: {
   function syncUiFromActive() {
     if (!canvas.value) return;
     const active = getActiveObject();
-    if (!active) return;
-    if ((canvas.value.getActiveObjects?.() || []).length > 1) return;
+    if (!active || (canvas.value.getActiveObjects?.() || []).length > 1) {
+      activeTextSelected.value = false;
+      textWidth.value = "";
+      textHeight.value = "";
+      return;
+    }
 
     syncing.value = true;
 
     if (active.dataType === "text") {
       const activeText = active as ActiveTextObject;
+      activeTextSelected.value = true;
+      syncActiveTextSize(active);
       fontFamily.value = activeText.fontFamily || fontFamily.value;
       fontSize.value = Number(activeText.fontSize || fontSize.value);
       fillColor.value = activeText.fill || fillColor.value;
     } else if (active.dataType === "icon") {
+      activeTextSelected.value = false;
+      textWidth.value = "";
+      textHeight.value = "";
       const activeIcon = active as ActiveIconObject;
       const fill = activeIcon._objects?.[0]?.fill || activeIcon.fill;
       if (fill) fillColor.value = fill;
@@ -196,14 +485,33 @@ export function useCanvasEditor(options: {
     }
     if (!canvas.value) return;
 
-    const textbox = new fabric.Textbox(value, {
+    const textbox = new fabric.Text(value, {
       left: CANVAS_BASE_SIZE.width * 0.35,
       top: CANVAS_BASE_SIZE.height * 0.35,
       fontFamily: fontFamily.value,
       fontSize: fontSize.value,
       fill: fillColor.value,
-      editable: true,
+      hasControls: true,
+      lockScalingX: false,
+      lockScalingY: false,
+      lockUniScaling: false,
+      cornerSize: 14,
+      touchCornerSize: 28,
+      transparentCorners: false,
+      padding: 4,
     }) as TaggedObject;
+
+    textbox.setControlsVisibility?.({
+      tl: true,
+      tr: true,
+      bl: true,
+      br: true,
+      ml: true,
+      mr: true,
+      mt: true,
+      mb: true,
+      mtr: true,
+    });
 
     textbox.dataType = "text";
     canvas.value.add(textbox);
@@ -305,13 +613,16 @@ export function useCanvasEditor(options: {
     const fabricCanvas = new fabric.Canvas(element, {
       selection: true,
       preserveObjectStacking: true,
+      enablePointerEvents: true,
     });
 
     canvas.value = fabricCanvas;
     fabricCanvas.on("selection:created", syncUiFromActive as never);
     fabricCanvas.on("selection:updated", syncUiFromActive as never);
     fabricCanvas.on("selection:cleared", syncUiFromActive as never);
+    fabricCanvas.on("object:scaling", syncUiFromActive as never);
     fabricCanvas.on("object:modified", syncUiFromActive as never);
+    bindTextResizeEvents(fabricCanvas);
 
     void setBackground(backgroundUrl.value);
     syncScaleToOuter();
@@ -326,12 +637,14 @@ export function useCanvasEditor(options: {
 
   onBeforeUnmount(() => {
     window.removeEventListener("keydown", onKeydown);
+    unbindTextResizeEvents();
     resizeObserver.value?.disconnect();
     if (rafId.value) cancelAnimationFrame(rafId.value);
     if (canvas.value) {
       canvas.value.off("selection:created", syncUiFromActive as never);
       canvas.value.off("selection:updated", syncUiFromActive as never);
       canvas.value.off("selection:cleared", syncUiFromActive as never);
+      canvas.value.off("object:scaling", syncUiFromActive as never);
       canvas.value.off("object:modified", syncUiFromActive as never);
       canvas.value.dispose();
     }
@@ -346,6 +659,7 @@ export function useCanvasEditor(options: {
 
   return {
     activeTab,
+    activeTextSelected,
     canvasOuterRef,
     exportPng,
     fillColor,
@@ -361,6 +675,8 @@ export function useCanvasEditor(options: {
       iconPickerOpen.value = value;
     },
     textInput,
+    textHeightModel,
+    textWidthModel,
     addText,
   };
 }

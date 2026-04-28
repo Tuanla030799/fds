@@ -2,7 +2,7 @@ import type * as fabric from 'fabric'
 import type { SelectOption } from '@/types/designer'
 
 export type IconKey = 'heart' | 'star' | 'flower' | 'smile' | 'crown'
-export type EditorTab = 'text' | 'style' | 'actions'
+export type EditorTab = 'text' | 'style'
 export type CanvasBackgroundFit = 'contain' | 'cover'
 
 export type TaggedObject = fabric.FabricObject & { dataType?: 'text' | 'icon' }

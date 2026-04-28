@@ -23,5 +23,4 @@ export const FONT_OPTIONS: SelectOption[] = [
 export const CANVAS_TAB_ITEMS: ReadonlyArray<{ key: EditorTab; label: string }> = [
   { key: 'text', label: 'Text' },
   { key: 'style', label: 'Style' },
-  { key: 'actions', label: 'Actions' },
 ] as const

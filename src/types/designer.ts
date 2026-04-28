@@ -7,12 +7,13 @@ export type NoticeState<
   text: T extends string ? string : never;
 } | null;
 
-export type PresetStatus = "active" | "draft" | "archived";
+export type TemplateStatus = "ACTIVE" | "INACTIVE";
 
-export type PresetRow = {
+export type TemplateRow = {
   id: number | string;
+  fileId?: number | string;
   name: string;
-  status: PresetStatus;
+  status: TemplateStatus;
   tags: string[];
   note: string;
   imageUrl?: string;
